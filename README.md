@@ -39,7 +39,7 @@ svn-repo/
 # 之后你可以像通常使用 git 那样在本地仓库中进行更改或提交，注意这里的操作都只是对本地仓库来说的
 
 	//do some change in your local git repo
-	
+	
 	git add *
 	git commit -m 'something be added to repo for commit'
 	
