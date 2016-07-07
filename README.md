@@ -1,5 +1,126 @@
 # 学习使用 git-svn
 
+我想，点击这篇文章进来的同志们应该都是对 git 和 svn 版本控制工具或多或少都了解的。那么我丢失的对一些基础知识的说明也就不是那么必须了。
+
+因为大部分公司开发的项目多数是使用 Subversion 这样的版本控制工具的，而作为16级应届毕业生，之前被GitHub大潮洗礼过，入职前对于版本控制工具的学习只限于git, 毕业论文的撰写也是在git的帮助下完成了，所以用自己熟悉的工具当然是最好的了。可是偏偏工作了用不上，郁闷了一段时间。
+
+对于椭圆非标准方程式，我们通常都是先把它转化到标准方程后对其进行处理的，我想高考过的人都应该能理解这里的意思。既然一个环境我们不熟悉，那么就把它转化到我们熟悉的环境下进行操作。幸运的是，已经有人做过这方面的工作了， git-svn 就是这样一个令人振奋的工具。它可以把远程的Subversion仓库克隆成本地的git仓库，让你在本地操作完全和git环境一模一样，只是在和远程仓库交互时的操作略有不同。
+
+主要的不同之处大概也就是在克隆、下拉、上推这三种操作的调整。
+
+通常一个标准的SVN仓库目录结构是这样的(一般至少包含 trunk、tags、branches目录)：
+
+```
+svn-repo/
+├── trunk			项目主干 相当于 git 仓库下的 master 分支
+├── tags			打tag的项目版本，用于发布，相当于 git 下的 release 分支 
+├── branches		相当于一般的 git 分支, 一般用于新性或模块的开发工作
+├── doc     		一般用于存放一些项目开发过程中用到的文档资料
+└── other-dir		一些其它资料存放在这里，像是开发证书之类的文件
+```
+
+
+## 下面以三个例子说明一下大致流程：
+
+### 基本使用示例：
+
+跟踪并对一个Subversion托管仓库的 `trunk` 目录贡献，忽略 `tags` 和 `branches` 目录：
+
+```
+#克隆一个仓库, 类似于 git clone 命令：
+	git svn clone http://svn.example/com/project/trunk
+	
+# 进入新克隆的本地仓库目录：
+	cd trunk
+	
+# 现在你应该是master分支上，使用 git branch 来确认一下
+	git branch
+	
+# 之后你可以像通常使用 git 那样在本地仓库中进行更改或提交，注意这里的操作都只是对本地仓库来说的
+
+	//do some change in your local git repo
+	
+	git add *
+	git commit -m 'something be added to repo for commit'
+	
+# 当你想要将本地的更改提交远程仓库时， 需要先使用 rebase 命令来同步其它人的工作到本地仓库中：
+	git svn rebase
+	
+# 同步远程仓库后可能会出现一些冲突，像正常使用git那样解决冲突后，再使用 git svn rebase 同步仓库，直到没有冲突后，就可以使用 git svn dcommit 提交你的更改到远程仓库中：
+	git svn dcommit
+	
+# 你还可以把远程SVN仓库中设定的忽略文件设定导入到本地git仓库的相应设置文件中：
+	git svn show-ignore >> ,git/info/exclude
+
+```
+
+另一个例子是跟踪并对一个完整的标准SVN仓库(包括 `trunk` `tags` 和 `branches`目录)贡献。
+
+```
+# 首先是克隆远程SVN仓库到本地git仓库:
+	git svn clone http://svn.example.com/project --stdlayout --prefix svn/
+	
+# 如果远程SVN仓库使用的目录结构不是标准的 trunk/tags/branches 形式时，使用：
+	git svn clone http://svn.example.com/project -T trunk_dir -b branch_dir -t tag_dir --prefix svn/
+	
+# 查看你所克隆的仓库的所有分支(branches)和标记（tags):
+	git branch -r
+	
+# 在SVN远程仓库中创建一个新的分支：
+	git svn branch new-branch-name
+	
+# 把git 的 master 分支(或其它分支)设定到 SVN 的 trunk 目录上：
+	git reset --hard svn/trunk
+#
+# 一次你只能向 branch/tag/trunk 提交一次，使用 dcommit命令
+#
+# 之后你可以像常使用 git 那样在本地仓库中进行更改或提交，注意这里的操作都只是对本地仓库来说的
+	git commit ...
+	
+# 当你想要将本地的更改提交远程仓库时， 需要先使用 rebase 命令来同步其它你的工作到你本地仓库中：
+	git svn rebase
+	
+# 同步远程仓库后可能会出现一些冲突，像正常使用git那样解决冲突后，再使用 git svn rebase 同步仓库，直到没有冲突后，再使用 git svn dcommit 提交你的更改到远程仓库中：
+	git svn dcommit
+	
+# 你还可以把远程SVN仓库中设定的忽略文件设定导入到本地git仓库的相应设置文件中：
+	git svn show-ignore >> ,git/info/exclude
+	
+```
+
+当远程SVN项目非常大时， 使用 `git svn clone` 来克隆项目会很耗时, 如果多个人想都使用 `git svn clone` 去克隆同一个远程仓库时，可以先让其中一人使用 `git svn clone` 把仓库克隆成git仓库放在服务器上，然后其它人就可以像克隆git远程仓库那样进行仓库克隆了。
+
+```
+# 由一个人把SVN远程仓库克隆到服务器上：
+	ssh server "cd /pub && git svn clone http://svn.example.com/project [options ...]"
+	
+# 然后其它人就可以克隆仓库到本地了：
+	mkdir project 
+	cd project
+	git init
+	git remote add origin server:/pub/project
+	git config --replace-all remote.origin.fetch '+ref/remotes/*:refs/remotes/*'
+	git fetch
+	
+# 防止之后再从 Git 服务器上取数据， 因为克隆下来后，我们之后都是要使用 git svn 来操作远程SVN仓库了， 不是之前的那个临时Git仓库服务器了
+	git config --remove-section remote.origin
+	
+# 从之前获取的远程分支中创建一个对应的本地分支进行跟踪：
+	git checkout -b master FETCH_HEAD
+	
+# 本地初始化 git svn 仓库就和之前的两个示例一样了：
+	git svn init http://svn.example.com/project [options ...]
+	
+# 从SVN远程仓库上拉下最新的数据：
+	git svn rebase
+	
+```
+
+如果看完这几个例子，还是有点不明白，那么就需要进一步了解一下具体涉及的几个命令的详细说明了，这里我只对我自己觉得重要的几个命令和相关选项作一点翻译工作。扔个砖头，引个玉 ～～
+
+
+# git-svn 命令手册部分翻译
+
 [英文版官方文档：https://git-scm.com/docs/git-svn](https://git-scm.com/docs/git-svn)
 
 ## 名称
@@ -97,78 +218,3 @@
 ### info
 
 与纯svn环境下的 `svn info` 使用效果一样
-
-### 基本使用示例：
-
-跟踪并对一个Subversion托管仓库的 `trunk` 目录贡献，忽略 `tags` 和 `branches` 目录：
-
-```
-#克隆一个仓库, 类似于 git clone 命令：
-	git svn clone http://svn.example/com/project/trunk
-# 进入新克隆的本地仓库目录：
-	cd trunk
-# 现在你应该是master分支上，使用 git branch 来确认一下
-	git branch
-# 之后你可以像常使用 git 那样在本地仓库中进行更改或提交，注意这里的操作都只是对本地仓库来说我
-	git commit ...
-	
-# 当你想要将本地的更改提交远程仓库时， 需要先使用 rebase 命令来同步其它你的工作到你本地仓库中：
-	git svn rebase
-	
-# 同步远程仓库后可能会出现一些冲突，像正常使用git那样解决冲突后，再使用 git svn rebase 同步仓库，直到没有冲突后，再使用 git svn dcommit 提交你的更改到远程仓库中：
-	git svn dcommit
-# 你还可以把远程SVN仓库中设定的忽略文件设定导入到本地git仓库的相应设置文件中：
-	git svn show-ignore >> ,git/info/exclude
-
-```
-
-另一个例子是跟踪并对一个完整的标准SVN仓库(包括 `trunk` `tags` 和 `branches`目录)贡献。
-
-```
-# 首先是克隆远程SVN仓库到本地git仓库:
-	git svn clone http://svn.example.com/project --stdlayout --prefix svn/
-# 如果远程SVN仓库使用的目录结构不是标准的 trunk/tags/branches 形式时，使用：
-	git svn clone http://svn.example.com/project -T trunk_dir -b branch_dir -t tag_dir --prefix svn/
-# 查看你所克隆的仓库的所有分支(branches)和标记（tags):
-	git branch -r
-# 在SVN远程仓库中创建一个新的分支：
-	git svn branch new-branch-name
-# 把git 的 master 分支(或其它分支)设定到 SVN 的 trunk 目录上：
-	git reset --hard svn/trunk
-#
-# 一次你只能向 branch/tag/trunk 提交一次，使用 dcommit命令
-#
-# 之后你可以像常使用 git 那样在本地仓库中进行更改或提交，注意这里的操作都只是对本地仓库来说我
-	git commit ...
-	
-# 当你想要将本地的更改提交远程仓库时， 需要先使用 rebase 命令来同步其它你的工作到你本地仓库中：
-	git svn rebase
-	
-# 同步远程仓库后可能会出现一些冲突，像正常使用git那样解决冲突后，再使用 git svn rebase 同步仓库，直到没有冲突后，再使用 git svn dcommit 提交你的更改到远程仓库中：
-	git svn dcommit
-# 你还可以把远程SVN仓库中设定的忽略文件设定导入到本地git仓库的相应设置文件中：
-	git svn show-ignore >> ,git/info/exclude
-```
-
-当远程SVN项目非常大时， 使用 `git svn clone` 来克隆项目会很耗时, 如果多个人想都使用 `git svn clone` 去克隆同一个远程仓库时，可以先认其中一人使用 `git svn clone` 把仓库克隆成git仓库放在服务器上，然后其它人就可以像克隆git远程仓库那样进行仓库克隆了。
-
-```
-# 由一个人把SVN远程仓库克隆到服务器上：
-	ssh server "cd /pub && git svn clone http://svn.example.com/project [options ...]
-	
-# 然后其它人就可以克隆仓库到本地了：
-	mkdir project 
-	cd project
-	git init
-	git remote add origin server:/pub/project
-	git config --replace-all remote.origin.fetch '+ref/remotes/*:refs/remotes/*'
-	git fetch
-# 防止之后再从 Git 服务器上取数据， 因为克隆下来后，我们之后都是要使用 git svn 来操作远程SVN仓库了， 不是之前的那个临时Git仓库服务器了
-	git config --remove-section remote.origin
-# 从之前获取的远程分支中创建一个对应本地分支进行跟踪：
-	git checkout -b master FETCH_HEAD
-# 本地初始化 git svn 仓库就和之前的两个示例一样了：
-	git svn init http://svn.example.com/project [options ...]
-# 从SVN远程仓库上拉下最新的数据：
-	git svn rebase
-```
